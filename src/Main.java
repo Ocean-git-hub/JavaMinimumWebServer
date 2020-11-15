@@ -1,10 +1,9 @@
 import java.io.*;
 import java.net.*;
 import java.nio.file.*;
-import java.util.concurrent.*;
 
 public class Main {
-    private static final int PORT = 80;
+    private static final int PORT = 8080;
     private static final String SERVER_NAME = "Java-Webserver";
     private static String documentRoot;
 
@@ -15,16 +14,25 @@ public class Main {
         }
 
         documentRoot = args[0];
-        ExecutorService threadPool = Executors.newFixedThreadPool(Integer.parseInt(args[2]));
         try {
             ServerSocket serverSocket = new ServerSocket(PORT, Integer.parseInt(args[1]));
             System.out.println("Startup " + SERVER_NAME);
-            while (true) {
-                Socket clientSocket = serverSocket.accept();
-                threadPool.submit(() -> exchangeConnection(clientSocket));
-            }
+
+            int threads = Integer.parseInt(args[2]);
+            for (int i = 0; i < threads; i++)
+                new Thread(() -> thread_doing(serverSocket)).start();
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private static void thread_doing(ServerSocket serverSocket) {
+        while (true) {
+            try {
+                exchangeConnection(serverSocket.accept());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -51,18 +59,22 @@ public class Main {
             if (Files.isReadable(filePath)) {
                 socketOutputStream.
                         write(("HTTP/1.0 200 OK\r\n" +
-                                "Server: " + SERVER_NAME + "\r\n\r\n").getBytes());
+                                "Server: " + SERVER_NAME + "\r\n" +
+                                "Connection: close\r\n" +
+                                "Content-Length: " + Files.size(filePath) + "\r\n\r\n").getBytes());
                 if (isGet)
                     socketOutputStream.write(Files.readAllBytes(filePath));
             } else
                 socketOutputStream.
                         write(("HTTP/1.0 404 Not Found\r\n" +
-                                "Server: " + SERVER_NAME + "\r\n\r\n" +
+                                "Server: " + SERVER_NAME + "\r\n" +
+                                "Connection: close\r\n" +
+                                "Content-Length: 80" + "\r\n\r\n" +
                                 "<html><head><title>404 Not Found</title></head>" +
                                 "<body>404 Not Found</body></html>").getBytes());
             socket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (Exception e) {
+            System.out.println(e.toString());
         }
     }
 }
